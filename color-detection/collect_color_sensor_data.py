@@ -14,7 +14,7 @@ from math import sqrt
 COLOR_SENSOR_DATA_FILE = "../data_analysis/color_sensor.csv"
 
 # complete this based on your hardware setup
-COLOR_SENSOR = EV3ColorSensor(1)
+COLOR_SENSOR = EV3ColorSensor(3)
 TOUCH_SENSOR = TouchSensor(2)
 
 wait_ready_sensors(True) # Input True to see what the robot is trying to initialize! False to be silent.
