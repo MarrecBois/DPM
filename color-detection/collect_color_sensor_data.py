@@ -86,7 +86,7 @@ def CSR_calculate_closest_color(r,g,b):
     trash_color_center = (0.5379, 0.3761, 0.0861, "TRASH") # Yellow / unnormalized (48.00, 33.56, 7.68)
     # Need to retry the trash color center
 
-    color_center_array = [orange_waste_color_center, yellow_waste_color_center, people_color_center, chair_color_center, ground_color_center, grid_color_center, water_color_center]
+    color_center_array = [orange_waste_color_center, yellow_waste_color_center, people_color_center, chair_color_center, ground_color_center, grid_color_center, water_color_center, trash_color_center]
 
     # distance, color name
     closest_color = 10000, "NONE"
