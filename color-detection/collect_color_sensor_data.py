@@ -9,6 +9,7 @@ It must be run on the robot.
 from utils.brick import EV3ColorSensor, wait_ready_sensors, TouchSensor
 from time import sleep
 from math import sqrt
+from statistics import median
 
 
 COLOR_SENSOR_DATA_FILE = "../data_analysis/color_sensor.csv"
@@ -118,6 +119,33 @@ def normalize_color_sensor_data(r,g,b):
     normalized_b = b/(r+g+b)
 
     return normalized_r, normalized_g, normalized_b
+
+# input the color sensor and return a median of 10 samples
+def color_sensor_filter(color_sensor):
+    r_sample_array = []
+    g_sample_array = []
+    b_sample_array = []
+    try:
+        while len(r_sample_array) < 10:
+            sample = color_sensor.get_value()
+            if sample is not None and sample != [0,0,0,0]:
+                r_sample_array.append(sample[0])
+                g_sample_array.append(sample[1])
+                b_sample_array.append(sample[2])
+        
+        r_median = median(r_sample_array)
+        g_median = median(g_sample_array)
+        b_median = median(b_sample_array)
+        
+        return r_median, g_median, b_median
+
+
+    except BaseException:  # capture all exceptions including KeyboardInterrupt (Ctrl-C)
+        exit()  
+
+
+
+
 
 #if __name__ == "__main__":
    # collect_color_sensor_data()
