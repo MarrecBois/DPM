@@ -143,9 +143,5 @@ def color_sensor_filter(color_sensor):
     except BaseException:  # capture all exceptions including KeyboardInterrupt (Ctrl-C)
         exit()  
 
-
-
-
-
 #if __name__ == "__main__":
    # collect_color_sensor_data()
