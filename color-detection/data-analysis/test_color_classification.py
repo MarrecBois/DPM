@@ -12,8 +12,8 @@ from math import sqrt
 from collect_color_sensor_data import CSL_calculate_closest_color, CSR_calculate_closest_color, normalize_color_sensor_data
 
 # Sensor initialization
-COLOR_SENSOR = EV3ColorSensor(3)
-TOUCH_SENSOR = TouchSensor(2)
+COLOR_SENSOR = EV3ColorSensor(2)
+TOUCH_SENSOR = TouchSensor(3)
 
 wait_ready_sensors(True) # Input True to see what the robot is trying to initialize! False to be silent.
 
@@ -27,25 +27,20 @@ def test_color_classification(sensor):
                 if color_data is not None: # If None is given, then data collection failed that time
                     print(color_data)
                     if sensor == "CSL":
-                        r,g,b = normalize_color_sensor_data(color_data)
+                        r,g,b = normalize_color_sensor_data(color_data[0], color_data[1], color_data[2])
                         print(CSL_calculate_closest_color(r,g,b))
                     elif sensor == "CSR":
-                        r,g,b = normalize_color_sensor_data(color_data)
+                        r,g,b = normalize_color_sensor_data(color_data[0], color_data[1], color_data[2])
                         print(CSR_calculate_closest_color(r,g,b))
                     else:
                         print("Sensor not recognized")
                 sleep(0.5)
     
     except BaseException:  # capture all exceptions including KeyboardInterrupt (Ctrl-C)
-        output_file.close()
-        exit()
-   
-    
-    except BaseException:  # capture all exceptions including KeyboardInterrupt (Ctrl-C)
         exit()
 
 # Test the color classification for the left color sensor
 if __name__ == "__main__":
-    test_color_classification("CSL")
+    test_color_classification("CSR")
     
 

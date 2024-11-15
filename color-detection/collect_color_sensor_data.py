@@ -14,10 +14,10 @@ from math import sqrt
 COLOR_SENSOR_DATA_FILE = "../data_analysis/color_sensor.csv"
 
 # complete this based on your hardware setup
-COLOR_SENSOR = EV3ColorSensor(3)
-TOUCH_SENSOR = TouchSensor(2)
+#COLOR_SENSOR = EV3ColorSensor(2)
+#TOUCH_SENSOR = TouchSensor(3)
 
-wait_ready_sensors(True) # Input True to see what the robot is trying to initialize! False to be silent.
+#wait_ready_sensors(True) # Input True to see what the robot is trying to initialize! False to be silent.
 
 
 def collect_color_sensor_data():
@@ -119,5 +119,5 @@ def normalize_color_sensor_data(r,g,b):
 
     return normalized_r, normalized_g, normalized_b
 
-if __name__ == "__main__":
-    collect_color_sensor_data()
+#if __name__ == "__main__":
+   # collect_color_sensor_data()
