@@ -83,6 +83,7 @@ def CSR_calculate_closest_color(r,g,b):
     ground_color_center = (0.342, 0.539, 0.119, "GROUND") # Green / unnormalized (14.00, 22.04, 4.88)
     grid_color_center = (0.693, 0.201, 0.106, "GRID") # Red / unnormalized (28.45, 8.25, 4.35)
     water_color_center = (0.179, 0.251, 0.570, "WATER") # Blue / unnormalized (4.48, 6.30, 14.26)
+    trash_color_center = (0.5379, 0.3761, 0.0861, "TRASH") # Yellow / unnormalized (48.00, 33.56, 7.68)
     # Need to retry the trash color center
 
     color_center_array = [orange_waste_color_center, yellow_waste_color_center, people_color_center, chair_color_center, ground_color_center, grid_color_center, water_color_center]
