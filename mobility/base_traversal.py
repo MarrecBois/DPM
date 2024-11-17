@@ -8,19 +8,20 @@ from utils.brick import BP, Motor, EV3UltrasonicSensor, wait_ready_sensors
 #Allocate resources, initial configuration
 
 BP = brickpi3.BrickPi3()
-POWER_LIMIT = 80
+POWER_LIMIT = 150
 SPEED_LIMIT = 360
 DPS = 180
 DRUM_ANGLE = 20
 RIGHT_WHEEL = Motor("B")
 LEFT_WHEEL = Motor("C")
-US_SENSOR_FRONT = EV3UltrasonicSensor(3)
-US_SENSOR_RIGHT = EV3UltrasonicSensor(4)
+US_MOTOR = Motor("A")
+US_SENSOR_FRONT = EV3UltrasonicSensor(4)
+US_SENSOR_RIGHT = EV3UltrasonicSensor(1)
 
 # New parameters for spiral
-STARTDIST = 8
+STARTDIST = 3
 SIDEDIST = 8
-NUMSPIRALS = 5
+NUMSPIRALS = 3
 INCREMENT = 15
 DISTTODEG = 180/(3.1416 * 0.028)
 ORIENTTODEG = 0.053/0.02
@@ -113,6 +114,7 @@ if __name__=="__main__":
             #Initialize the motor and set desired limits
             init_motor(RIGHT_WHEEL)
             init_motor(LEFT_WHEEL)
+            init_motor(US_MOTOR)
 
         except IOError as error:
             print(error)
@@ -124,33 +126,34 @@ if __name__=="__main__":
             try:
                 #ANGLE DEPENDS ON BATTERY
                 followWallUntilHit(dist, side)
-                turnLeft(75)
+                print("turning left")
+                turnLeft(60)
                 time.sleep(1)
                 moveDistForward(0.3)
                 time.sleep(0.5)
-                turnLeft(35)
+                turnLeft(20)
                 time.sleep(1)
                 followWallUntilHit(dist, side)
-                turnLeft(75)
+                turnLeft(60)
                 time.sleep(1)
                 moveDistForward(0.3)
                 time.sleep(0.5)
-                turnLeft(35)
+                turnLeft(20)
                 time.sleep(1)
                 followWallUntilHit(dist, side)
-                turnLeft(75)
+                turnLeft(60)
                 time.sleep(1)
                 moveDistForward(0.3)
                 time.sleep(0.5)
-                turnLeft(35)
+                turnLeft(20)
                 time.sleep(1)
                 dist += INCREMENT
                 followWallUntilHit(dist, side)
-                turnLeft(75)
+                turnLeft(60)
                 time.sleep(1)
                 moveDistForward(0.3)
                 time.sleep(0.5)
-                turnLeft(35)
+                turnLeft(20)
                 time.sleep(1)
                 side += INCREMENT
                 
@@ -163,4 +166,3 @@ if __name__=="__main__":
     except KeyboardInterrupt:
         BP.reset_all()
         exit()
-
