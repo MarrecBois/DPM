@@ -258,6 +258,8 @@ def turnLeft(deg):
 #Turns right by the given angle
 def turnRight(deg):
     try:
+        LEFT_WHEEL.set_limits(POWER_LIMIT, SPEED_LIMIT)
+        RIGHT_WHEEL.set_limits(POWER_LIMIT, SPEED_LIMIT)
         RIGHT_WHEEL.set_position_relative(int(deg*ORIENTTODEG))
         LEFT_WHEEL.set_position_relative(int(-deg*ORIENTTODEG))
     except IOError as error:
@@ -326,7 +328,6 @@ if __name__=="__main__":
     except KeyboardInterrupt:
         BP.reset_all()
         exit()
-
 
 
 
