@@ -22,8 +22,9 @@ US_SENSOR_FRONT = EV3UltrasonicSensor(4)
 US_SENSOR_RIGHT = EV3UltrasonicSensor(1)
 
 # Color Detection parameters
-CSR = EV3ColorSensor(3)
-CSL = EV3ColorSensor(2)
+CSR = EV3ColorSensor(2)
+CSL = EV3ColorSensor(3)
+MIN_WATER_DIST_TO_WALL = 5
 
 # New parameters for spiral
 STARTDIST = 4
@@ -81,7 +82,7 @@ def CSR_calculate_closest_color(r,g,b):
     trash_color_center = (0.5379, 0.3761, 0.0861, "TRASH") # Yellow / unnormalized (48.00, 33.56, 7.68)
     # Need to retry the trash color center
 
-    color_center_array = [orange_waste_color_center, yellow_waste_color_center, people_color_center, chair_color_center, ground_color_center, grid_color_center, water_color_center, trash_color_center]
+    color_center_array = [ground_color_center, grid_color_center, water_color_center, trash_color_center, orange_waste_color_center, yellow_waste_color_center, people_color_center, chair_color_center]
 
     # distance, color name
     closest_color = 10000, "NONE"
@@ -113,7 +114,7 @@ def normalize_color_sensor_data(r,g,b):
 
     return normalized_r, normalized_g, normalized_b
 
-# input the color sensor and return a median of 10 samples
+# input the color sensor and return a median of 20 samples
 def color_sensor_filter(color_sensor):
     r_sample_array = []
     g_sample_array = []
@@ -121,7 +122,7 @@ def color_sensor_filter(color_sensor):
     try:
         while len(r_sample_array) < 20:
             sample = color_sensor.get_value()
-            if sample is not None and sample != [0,0,0,0]:
+            if sample is not None and (sample[0] != 0 and sample[1] != 0 and sample[2] != 0):
                 r_sample_array.append(sample[0])
                 g_sample_array.append(sample[1])
                 b_sample_array.append(sample[2])
@@ -136,6 +137,38 @@ def color_sensor_filter(color_sensor):
     except BaseException:  # capture all exceptions including KeyboardInterrupt (Ctrl-C)
         exit()  
 
+def CSR_sense_water():
+    # Based on the sensor, get the median of 20 samples
+    CSR_median_r, CSR_median_g, CSR_median_b = color_sensor_filter(CSR)
+    # Normalize the color sensor data
+    CSR_normalized_r, CSR_normalized_g, CSR_normalized_b = normalize_color_sensor_data(CSR_median_r, CSR_median_g, CSR_median_b)
+    # Get the closest color based on which sensor it is
+    water_color_center = (0.179, 0.251, 0.570, "WATER") # Blue / unnormalized (4.48, 6.30, 14.26)
+    # Calculate the distance to the center
+    distance_to_center = calculate_euclidean_distance((CSR_normalized_r, CSR_normalized_g, CSR_normalized_b), water_color_center)
+    # if the distance is less than a threshold, then it is water
+    if distance_to_center < 0.1:
+        print("**** CSR: WATER is detected with distance: ", distance_to_center)
+        return True
+    else:
+        return False
+
+
+def CSL_sense_water():
+    # Based on the sensor, get the median of 20 samples
+    CSL_median_r, CSL_median_g, CSL_median_b = color_sensor_filter(CSL)
+    # Normalize the color sensor data
+    CSL_normalized_r, CSL_normalized_g, CSL_normalized_b = normalize_color_sensor_data(CSL_median_r, CSL_median_g, CSL_median_b)
+    # Get the closest color based on which sensor it is
+    water_color_center = (0.202, 0.255, 0.543, "WATER") # Blue / unormalized (31.00, 39.21, 83.29)
+    # Calculate the distance to the center
+    distance_to_center = calculate_euclidean_distance((CSL_normalized_r, CSL_normalized_g, CSL_normalized_b), water_color_center)
+    # if the distance is less than a threshold, then it is water
+    if distance_to_center < 0.1:
+        print("**** CSL: WATER is detected with distance: ", distance_to_center)
+        return True
+    else:
+        return False
 
 # ****** Robot Navigation ******
 
@@ -162,19 +195,9 @@ def followWallUntilHit(distFromWall, sideDist):
         current_dist = US_SENSOR_FRONT.get_value()
         print(current_dist)
 
-        # Get the color sensor data
-        CSR_r, CSR_g, CSR_b = color_sensor_filter(CSR)
-        CSL_r, CSL_g, CSL_b = color_sensor_filter(CSL)
-
-        # Normalize the color sensor data
-        CSR_r, CSR_g, CSR_b = normalize_color_sensor_data(CSR_r, CSR_g, CSR_b)
-        CSL_r, CSL_g, CSL_b = normalize_color_sensor_data(CSL_r, CSL_g, CSL_b)
-
-        # Get the closest color
-        CSR_color = CSR_calculate_closest_color(CSR_r, CSR_g, CSR_b)
-        CSL_color = CSL_calculate_closest_color(CSL_r, CSL_g, CSL_b)
-        print("**********CSR: ", CSR_color)
-        print("**********CSL: ", CSL_color)
+        # See if the robot is sensing water
+      #  CSR_water = CSR_sense_water()
+        CSL_water = CSL_sense_water()
 
         while current_dist == None:
             current_dist = US_SENSOR_FRONT.get_value()
@@ -183,9 +206,15 @@ def followWallUntilHit(distFromWall, sideDist):
         side_dist = US_SENSOR_RIGHT.get_value()
         while side_dist == None:
             side_dist = US_SENSOR_RIGHT.get_value()
-        
-        error = sideDist - side_dist
-        
+
+        # If water is detected on the left sensor, then modify the error
+        if CSL_water:
+            error = MIN_WATER_DIST_TO_WALL - side_dist
+       # elif CSR_water:
+         #   error = 255 - side_dist
+        else:
+            error = sideDist - side_dist
+       
         if abs(error) < DEADBAND:
             print("ALL GOOD")
             RIGHT_WHEEL.set_dps(-SPEED_LIMIT)
@@ -195,10 +224,15 @@ def followWallUntilHit(distFromWall, sideDist):
             print("TOO FAR SPEED UP LEFT WHEEL")
             RIGHT_WHEEL.set_dps(-SPEED_LIMIT)
             LEFT_WHEEL.set_dps(-SPEED_LIMIT - DELTASPEED)
+            if CSL_water:
+                LEFT_WHEEL.set_dps(-SPEED_LIMIT - DELTASPEED*2)
+
         
         else:
             print("TOO CLOSE SPEED UP RIGHT WHEEL")
             RIGHT_WHEEL.set_dps(-SPEED_LIMIT - DELTASPEED)
+           # if CSR_water:
+         #       RIGHT_WHEEL.set_dps(-SPEED_LIMIT - DELTASPEED*2)
             LEFT_WHEEL.set_dps(-SPEED_LIMIT)
 
 
@@ -292,6 +326,7 @@ if __name__=="__main__":
     except KeyboardInterrupt:
         BP.reset_all()
         exit()
+
 
 
 
