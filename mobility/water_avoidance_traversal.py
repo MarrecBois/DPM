@@ -26,15 +26,15 @@ CSR = EV3ColorSensor(3)
 CSL = EV3ColorSensor(2)
 
 # New parameters for spiral
-STARTDIST = 3
-SIDEDIST = 8
+STARTDIST = 4
+SIDEDIST = 9
 NUMSPIRALS = 3
 INCREMENT = 15
 DISTTODEG = 180/(3.1416 * 0.028)
 ORIENTTODEG = 0.053/0.02
 DEADBAND = 0.5
 DELTASPEED = 100
-
+SLEEP_TIME = 0.5
 
 # ****** Color Detection ******
 
@@ -254,33 +254,33 @@ if __name__=="__main__":
                 followWallUntilHit(dist, side)
                 print("turning left")
                 turnLeft(60)
-                time.sleep(1)
+                time.sleep(SLEEP_TIME)
                 moveDistForward(0.3)
-                time.sleep(0.5)
+                time.sleep(SLEEP_TIME)
                 turnLeft(20)
-                time.sleep(1)
+                time.sleep(SLEEP_TIME)
                 followWallUntilHit(dist, side)
                 turnLeft(60)
-                time.sleep(1)
+                time.sleep(SLEEP_TIME)
                 moveDistForward(0.3)
-                time.sleep(0.5)
+                time.sleep(SLEEP_TIME)
                 turnLeft(20)
-                time.sleep(1)
+                time.sleep(SLEEP_TIME)
                 followWallUntilHit(dist, side)
                 turnLeft(60)
-                time.sleep(1)
+                time.sleep(SLEEP_TIME)
                 moveDistForward(0.3)
-                time.sleep(0.5)
+                time.sleep(SLEEP_TIME)
                 turnLeft(20)
-                time.sleep(1)
+                time.sleep(SLEEP_TIME)
                 dist += INCREMENT
                 followWallUntilHit(dist, side)
                 turnLeft(60)
-                time.sleep(1)
+                time.sleep(SLEEP_TIME)
                 moveDistForward(0.3)
-                time.sleep(0.5)
+                time.sleep(SLEEP_TIME)
                 turnLeft(20)
-                time.sleep(1)
+                time.sleep(SLEEP_TIME)
                 side += INCREMENT
                 
 
