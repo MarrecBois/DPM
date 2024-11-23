@@ -3,7 +3,7 @@
 import brickpi3
 import time
 from utils import brick
-from utils.brick import BP, Motor
+from utils.brick import BP, Motor, EV3UltrasonicSensor, wait_ready_sensors
 
 #Program parameters
 
@@ -18,6 +18,7 @@ SPEED_LIMIT = 720
 DPS = 180
 ROTATION_ANGLE = 200
 US_SENSOR_MOTOR = Motor("A")
+US_SENSOR_FRONT = EV3UltrasonicSensor(4)
 
 
 #Function to initialize motor
@@ -70,3 +71,29 @@ if __name__=="__main__":
     #Trigger program exit with ^C
     except KeyboardInterrupt:
         BP.reset_all()
+
+# Current distance is the sampled when the sensor is at the bottom
+# Threshold is the distance that is considered a block
+def isBlock(current_distance, threshold):
+    # Rotate the sensor to the top
+    sensor_rotate("up")
+    time.sleep(1)
+
+    # Sample from the top position sensor
+    top_distance = US_SENSOR_FRONT.get_value()
+
+    # Rotate the sensor to the bottom
+    sensor_rotate("down")
+    time.sleep(1)
+
+    # Compare the two samples
+    if (abs(current_distance - top_distance)) > threshold:
+        print("Block detected, current distance is ", current_distance, " and top distance is ", top_distance)
+        return True
+    else:
+        print("No block detected current distance is ", current_distance, " and top distance is ", top_distance)
+        return False
+
+
+
+
