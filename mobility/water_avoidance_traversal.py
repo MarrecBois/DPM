@@ -122,20 +122,29 @@ def color_sensor_filter(color_sensor):
     try:
         while len(r_sample_array) < 20:
             sample = color_sensor.get_value()
-            if sample is not None and (sample[0] != 0 and sample[1] != 0 and sample[2] != 0):
+            if color_sensor == CSR:
+                print("*****CSR: sample value,", sample)
+            if sample is not None and all(value != 0 for value in sample):
                 r_sample_array.append(sample[0])
                 g_sample_array.append(sample[1])
                 b_sample_array.append(sample[2])
-        
+            else:
+                print("Invalid sample detected, retrying...")
+                time.sleep(0.05)  # Small delay before retrying
+
         r_median = median(r_sample_array)
         g_median = median(g_sample_array)
         b_median = median(b_sample_array)
-        
+
         return r_median, g_median, b_median
 
+    except IOError as error:
+        print(f"I/O error during color sensor filtering: {error}")
+        return None, None, None  # Return default values or handle as needed
+    except Exception as e:
+        print(f"Unexpected error during color sensor filtering: {e}")
+        return None, None, None
 
-    except BaseException:  # capture all exceptions including KeyboardInterrupt (Ctrl-C)
-        exit()  
 
 def CSR_sense_water():
     # Based on the sensor, get the median of 20 samples
@@ -196,7 +205,7 @@ def followWallUntilHit(distFromWall, sideDist):
         print(current_dist)
 
         # See if the robot is sensing water
-      #  CSR_water = CSR_sense_water()
+        CSR_water = CSR_sense_water()
         CSL_water = CSL_sense_water()
 
         while current_dist == None:
@@ -210,8 +219,8 @@ def followWallUntilHit(distFromWall, sideDist):
         # If water is detected on the left sensor, then modify the error
         if CSL_water:
             error = MIN_WATER_DIST_TO_WALL - side_dist
-       # elif CSR_water:
-         #   error = 255 - side_dist
+        elif CSR_water:
+            error = 255 - side_dist
         else:
             error = sideDist - side_dist
        
@@ -231,8 +240,8 @@ def followWallUntilHit(distFromWall, sideDist):
         else:
             print("TOO CLOSE SPEED UP RIGHT WHEEL")
             RIGHT_WHEEL.set_dps(-SPEED_LIMIT - DELTASPEED)
-           # if CSR_water:
-         #       RIGHT_WHEEL.set_dps(-SPEED_LIMIT - DELTASPEED*2)
+            if CSR_water:
+                RIGHT_WHEEL.set_dps(-SPEED_LIMIT - DELTASPEED*2)
             LEFT_WHEEL.set_dps(-SPEED_LIMIT)
 
 
