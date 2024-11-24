@@ -9,15 +9,18 @@ from statistics import median
 
 #Allocate resources, initial configuration
 
+# US Sensor Rotation Parameters
+US_MOTOR = Motor("A")
+DPS = 180
+ROTATION_ANGLE = 200
+
 # Navigation parameters
 BP = brickpi3.BrickPi3()
 POWER_LIMIT = 150
 SPEED_LIMIT = 360
-DPS = 180
 DRUM_ANGLE = 20
 RIGHT_WHEEL = Motor("B")
 LEFT_WHEEL = Motor("C")
-US_MOTOR = Motor("A")
 US_SENSOR_FRONT = EV3UltrasonicSensor(4)
 US_SENSOR_RIGHT = EV3UltrasonicSensor(1)
 
@@ -27,7 +30,7 @@ CSL = EV3ColorSensor(3)
 MIN_WATER_DIST_TO_WALL = 5
 
 # New parameters for spiral
-STARTDIST = 4
+STARTDIST = 6
 SIDEDIST = 9
 NUMSPIRALS = 3
 INCREMENT = 15
@@ -36,6 +39,43 @@ ORIENTTODEG = 0.053/0.02
 DEADBAND = 0.5
 DELTASPEED = 100
 SLEEP_TIME = 0.5
+
+# ****** US Sensor Motor ******
+
+def sensor_rotate(direction):
+    #Calculate the sleep and limits/position of the motor using the global variables
+    time.sleep(ROTATION_ANGLE/DPS)
+    US_MOTOR.set_limits(dps = DPS)
+    if (direction == "up"):
+        US_MOTOR.set_position_relative(ROTATION_ANGLE)
+    else:
+        US_MOTOR.set_position_relative(-ROTATION_ANGLE)
+    time.sleep(ROTATION_ANGLE/DPS)
+
+# Current distance is the sampled when the sensor is at the bottom
+# Threshold is the distance that is considered a block
+def isBlock(current_distance, threshold):
+    # Rotate the sensor to the top
+    sensor_rotate("up")
+    time.sleep(1)
+
+    # Sample from the top position sensor
+    top_distance = US_SENSOR_FRONT.get_value()
+
+    # Rotate the sensor to the bottom
+    sensor_rotate("down")
+    time.sleep(1)
+
+    # Compare the two samples
+    if (abs(current_distance - top_distance)) > threshold:
+        print("Block detected, current distance is ", current_distance, " and top distance is ", top_distance)
+        return True
+    else:
+        print("No block detected current distance is ", current_distance, " and top distance is ", top_distance)
+        return False
+
+
+
 
 # ****** Color Detection ******
 
@@ -189,65 +229,87 @@ def init_motor(motor : Motor):
     except IOError as error:
         print(error)
 
+
+def drive_forward(sideDist):
+    CSR_water = CSR_sense_water()
+    CSL_water = CSL_sense_water()
+
+    # Get the distance from the side wall and correct accordingly
+    side_dist = US_SENSOR_RIGHT.get_value()
+    while side_dist == None:
+        side_dist = US_SENSOR_RIGHT.get_value()
+
+    # If water is detected on the left sensor, then modify the error
+    if CSL_water:
+        error = MIN_WATER_DIST_TO_WALL - side_dist
+    elif CSR_water:
+        error = 255 - side_dist
+    else:
+        error = sideDist - side_dist
+    
+    if abs(error) < DEADBAND:
+        print("ALL GOOD")
+        RIGHT_WHEEL.set_dps(-SPEED_LIMIT)
+        LEFT_WHEEL.set_dps(-SPEED_LIMIT)
+
+    elif error < 0:
+        print("TOO FAR SPEED UP LEFT WHEEL")
+        RIGHT_WHEEL.set_dps(-SPEED_LIMIT)
+        LEFT_WHEEL.set_dps(-SPEED_LIMIT - DELTASPEED)
+        if CSL_water:
+            LEFT_WHEEL.set_dps(-SPEED_LIMIT - DELTASPEED*2)
+
+    else:
+        print("TOO CLOSE SPEED UP RIGHT WHEEL")
+        RIGHT_WHEEL.set_dps(-SPEED_LIMIT - DELTASPEED)
+        if CSR_water:
+            RIGHT_WHEEL.set_dps(-SPEED_LIMIT - DELTASPEED*2)
+        LEFT_WHEEL.set_dps(-SPEED_LIMIT)
+
+
 #Goes forward until it gets within a certain distance from the wall
-def followWallUntilHit(distFromWall, sideDist):
-    print(distFromWall)
-    current_dist = US_SENSOR_FRONT.get_value()
+def followWallUntilHit(distFromWallStop, sideDist):
 
     RIGHT_WHEEL.set_dps(-SPEED_LIMIT)
     LEFT_WHEEL.set_dps(-SPEED_LIMIT)
-    print(current_dist)
-    while current_dist == None:
-        current_dist = US_SENSOR_FRONT.get_value()
-    
-    while current_dist > distFromWall:
-        current_dist = US_SENSOR_FRONT.get_value()
-        print(current_dist)
 
-        # See if the robot is sensing water
-        CSR_water = CSR_sense_water()
-        CSL_water = CSL_sense_water()
+    while current_dist == None: # What's the point of this??
+        current_dist = US_SENSOR_FRONT.get_value() 
 
-        while current_dist == None:
-            current_dist = US_SENSOR_FRONT.get_value()
-        
-        # Get the distance from the side wall and correct accordingly
-        side_dist = US_SENSOR_RIGHT.get_value()
-        while side_dist == None:
-            side_dist = US_SENSOR_RIGHT.get_value()
+    sensor_values = [US_SENSOR_FRONT.get_value() for _ in range(3)]
+    current_dist = sorted(sensor_values)[1]
 
-        # If water is detected on the left sensor, then modify the error
-        if CSL_water:
-            error = MIN_WATER_DIST_TO_WALL - side_dist
-        elif CSR_water:
-            error = 255 - side_dist
-        else:
-            error = sideDist - side_dist
-       
-        if abs(error) < DEADBAND:
-            print("ALL GOOD")
-            RIGHT_WHEEL.set_dps(-SPEED_LIMIT)
-            LEFT_WHEEL.set_dps(-SPEED_LIMIT)
+    nonStopDriveDistanceLimit = 20
+    keep_going = True
+    while keep_going:
 
-        elif error < 0:
-            print("TOO FAR SPEED UP LEFT WHEEL")
-            RIGHT_WHEEL.set_dps(-SPEED_LIMIT)
-            LEFT_WHEEL.set_dps(-SPEED_LIMIT - DELTASPEED)
-            if CSL_water:
-                LEFT_WHEEL.set_dps(-SPEED_LIMIT - DELTASPEED*2)
+        drive_forward(sideDist)
+        #if the distance we're checking is less than the distance we want to stop at, chang it
+        if nonStopDriveDistanceLimit < distFromWallStop:
+            nonStopDriveDistanceLimit = distFromWallStop
+            need_to_turn = True
 
-        
-        else:
-            print("TOO CLOSE SPEED UP RIGHT WHEEL")
-            RIGHT_WHEEL.set_dps(-SPEED_LIMIT - DELTASPEED)
-            if CSR_water:
-                RIGHT_WHEEL.set_dps(-SPEED_LIMIT - DELTASPEED*2)
-            LEFT_WHEEL.set_dps(-SPEED_LIMIT)
+        sensor_values = [US_SENSOR_FRONT.get_value() for _ in range(3)]
+        current_dist = sorted(sensor_values)[1]
+        print("Current measured distance" + current_dist)
+        if current_dist < nonStopDriveDistanceLimit:
+            RIGHT_WHEEL.set_dps(0)
+            LEFT_WHEEL.set_dps(0)
+            time.sleep(0.1)
+            if (need_to_turn):
+                keep_going = False
+            elif (isBlock(current_dist, 3)):
+                #cube function FROM MARREC
+                print("Cube function")
+                keep_going = False
+            else:
+                #Half the distance we're checking before polling the isBlock function
+                nonStopDriveDistanceLimit = nonStopDriveDistanceLimit/2
 
-
+    #Stop the motors before turn 
     RIGHT_WHEEL.set_dps(0)
     LEFT_WHEEL.set_dps(0)
-    print("OUTSIDE")
+    print("Exited main drive loop")
     
 #Goes forward dist amount of cm
 def moveDistForward(dist):
@@ -288,7 +350,7 @@ if __name__=="__main__":
             init_motor(US_MOTOR)
 
         except IOError as error:
-            print(error)
+            print("IOERROR" + error)
             
         #Main loop
         dist = STARTDIST
