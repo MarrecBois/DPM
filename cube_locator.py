@@ -31,7 +31,7 @@ STARTDIST = 4
 SIDEDIST = 9
 NUMSPIRALS = 3
 INCREMENT = 15
-DISTTODEG = 180/(3.1416 * 0.028)
+DISTTODEG = -180/(3.1416 * 0.028)
 DISTFROMCUBE = 3
 DISTTOLOCATE = 15
 ORIENTTODEG = 0.053/0.02
@@ -67,6 +67,12 @@ def turnRight(deg):
     except IOError as error:
         print(error)
         
+#Call this function to move forward by x cm
+def move_forward(distance):
+    LEFT_WHEEL.set_limits(POWER_LIMIT, SPEED_LIMIT)
+    RIGHT_WHEEL.set_limits(POWER_LIMIT, SPEED_LIMIT)
+    RIGHT_WHEEL.set_position_relative(int(distance * DISTTODEG))
+    LEFT_WHEEL.set_position_relative(int(distance * DISTTODEG))
         
 # Call this function to get the bot locked on to a cube's location and the path it needs to take to get there
 def get_location():
@@ -127,12 +133,14 @@ def get_location():
     return result
 
 def set_speed():
-    print("I AM TURNED ON")
     RIGHT_WHEEL.set_dps(-SPEED_LIMIT)
     LEFT_WHEEL.set_dps(-SPEED_LIMIT)
+    print("hey")
 
 # Call this function to get the bot to approach the cube until it is x cm away
 def approach_cube():
+    turnLeft(20)
+    time.sleep(0.5)
     set_speed()
     #Get the current distance from the cube
     current_dist = US_SENSOR_FRONT.get_value()
@@ -141,26 +149,43 @@ def approach_cube():
     while current_dist == None or current_dist == 0:
         current_dist = US_SENSOR_FRONT.get_value()
 
-    RIGHT_WHEEL.set_dps(-SPEED_LIMIT)
-    LEFT_WHEEL.set_dps(-SPEED_LIMIT)
 
     #Repeat until the bot is close to cube
     print("Going for cube now!")
     while current_dist > DISTFROMCUBE:
         current_dist = US_SENSOR_FRONT.get_value()
-
+        turned = False
         #print(current_dist)
         while current_dist == None or current_dist == 0:
             current_dist = US_SENSOR_FRONT.get_value()
+        
+        #If it's not perfectly lined up, it may need to correct to the right a bit as it approaches the cube...
+        while current_dist > DISTTOLOCATE + 3:
+            turnRight(2)
+            time.sleep(0.1)
+            turned = True
+            current_dist = US_SENSOR_FRONT.get_value()
+            print("approaching distance: {}".format(current_dist))
+        
+        if turned:
+            print("good")
+            
+        set_speed()
+
 
     RIGHT_WHEEL.set_dps(0)
     LEFT_WHEEL.set_dps(0)
+    print(current_dist)
     print("I'm here to pick u up u little shit")
 
 
 #Call this function to turn the appropriate amount to get color sensor directly above the cube to sense it
-def turn_to_cube():
-    turnLeft(45)
+def turn_and_scan_cube():
+    turnLeft(40)
+    time.sleep(0.45)
+    move_forward(0.5)
+    time.sleep(1.7)  
+
 
 #Entry point -- print instructions
 if __name__=="__main__":
@@ -192,6 +217,8 @@ if __name__=="__main__":
                 if us_distance < DISTTOLOCATE:
                     get_location()
                     approach_cube()
+                    print("ready to turn to cube")
+                    turn_and_scan_cube()
                     picked_up = True
 
             RIGHT_WHEEL.set_dps(0)
