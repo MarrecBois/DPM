@@ -30,7 +30,7 @@ CSL = EV3ColorSensor(3)
 MIN_WATER_DIST_TO_WALL = 5
 
 # New parameters for spiral
-STARTDIST = 6
+STARTDIST = 4
 SIDEDIST = 9
 NUMSPIRALS = 3
 INCREMENT = 15
@@ -272,7 +272,8 @@ def followWallUntilHit(distFromWallStop, sideDist):
 
     RIGHT_WHEEL.set_dps(-SPEED_LIMIT)
     LEFT_WHEEL.set_dps(-SPEED_LIMIT)
-
+    current_dist = US_SENSOR_FRONT.get_value()
+    
     while current_dist == None: # What's the point of this??
         current_dist = US_SENSOR_FRONT.get_value() 
 
@@ -281,24 +282,26 @@ def followWallUntilHit(distFromWallStop, sideDist):
 
     nonStopDriveDistanceLimit = 20
     keep_going = True
+    need_to_turn = False
     while keep_going:
 
         drive_forward(sideDist)
         #if the distance we're checking is less than the distance we want to stop at, chang it
         if nonStopDriveDistanceLimit < distFromWallStop:
+            print ("need to turn to True")
             nonStopDriveDistanceLimit = distFromWallStop
             need_to_turn = True
 
         sensor_values = [US_SENSOR_FRONT.get_value() for _ in range(3)]
         current_dist = sorted(sensor_values)[1]
-        print("Current measured distance" + current_dist)
+        print("Current measured distance " + str(current_dist))
         if current_dist < nonStopDriveDistanceLimit:
             RIGHT_WHEEL.set_dps(0)
             LEFT_WHEEL.set_dps(0)
             time.sleep(0.1)
             if (need_to_turn):
                 keep_going = False
-            elif (isBlock(current_dist, 3)):
+            elif (isBlock(current_dist, 7)):
                 #cube function FROM MARREC
                 print("Cube function")
                 keep_going = False
