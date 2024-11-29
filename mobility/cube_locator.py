@@ -6,6 +6,7 @@ from utils import brick
 from utils.brick import BP, Motor, EV3UltrasonicSensor, wait_ready_sensors, EV3ColorSensor
 from math import sqrt
 from statistics import median
+from water_avoidance_traversal_with_rotation import *
 
 #Allocate resources, initial configuration
 
@@ -32,7 +33,7 @@ SIDEDIST = 9
 NUMSPIRALS = 3
 INCREMENT = 15
 DISTTODEG = -180/(3.1416 * 0.028)
-DISTFROMCUBE = 3
+DISTFROMCUBE = 4
 DISTTOLOCATE = 15
 ORIENTTODEG = 0.053/0.02
 DEADBAND = 0.5
@@ -135,13 +136,11 @@ def get_location():
 def set_speed():
     RIGHT_WHEEL.set_dps(-SPEED_LIMIT)
     LEFT_WHEEL.set_dps(-SPEED_LIMIT)
-    print("hey")
 
 # Call this function to get the bot to approach the cube until it is x cm away
 def approach_cube():
-    turnLeft(20)
+    turnLeft(5)
     time.sleep(0.5)
-    set_speed()
     #Get the current distance from the cube
     current_dist = US_SENSOR_FRONT.get_value()
 
@@ -153,13 +152,19 @@ def approach_cube():
     #Repeat until the bot is close to cube
     print("Going for cube now!")
     while current_dist > DISTFROMCUBE:
+                    
+
         current_dist = US_SENSOR_FRONT.get_value()
         turned = False
-        #print(current_dist)
+        print(current_dist)
         while current_dist == None or current_dist == 0:
             current_dist = US_SENSOR_FRONT.get_value()
         
         #If it's not perfectly lined up, it may need to correct to the right a bit as it approaches the cube...
+        if current_dist > DISTTOLOCATE + 3:
+            turnLeft(10)
+            time.sleep(0.5)
+        
         while current_dist > DISTTOLOCATE + 3:
             turnRight(2)
             time.sleep(0.1)
@@ -169,8 +174,9 @@ def approach_cube():
         
         if turned:
             print("good")
-            
+
         set_speed()
+
 
 
     RIGHT_WHEEL.set_dps(0)
@@ -181,11 +187,48 @@ def approach_cube():
 
 #Call this function to turn the appropriate amount to get color sensor directly above the cube to sense it
 def turn_and_scan_cube():
-    turnLeft(40)
-    time.sleep(0.45)
+    turnLeft(35)
+    time.sleep(0.40)
     move_forward(0.5)
-    time.sleep(1.7)  
+    time.sleep(1.83)  
 
+    r,g,b = color_sensor_filter(CSR)
+    normal_r, normal_g, normal_b = normalize_color_sensor_data(r, g, b)
+    color = CSR_calculate_closest_cube(normal_r, normal_g, normal_b)
+    print(color)
+    if color == "YELLOWPOOP" or color == "ORANGEPOOP":
+        print("WE FOUND POOP LETS PICK IT UP")
+        return True
+    else:
+        print("DONT HIT THE OBSTACLES PLEASE AVOID IT")
+        return False
+
+
+#Call this function to complete all of the steps necessary to appraoch, scan, and pickup/avoid a cube
+def cube_check():
+    try:
+        set_speed()
+
+        picked_up = False
+
+        while not picked_up:
+            us_distance = US_SENSOR_FRONT.get_value()
+            while us_distance == None:
+                us_distance = US_SENSOR_FRONT.get_value()
+            
+            print(us_distance)
+            if us_distance < DISTTOLOCATE:
+                approach_cube()
+                print("ready to turn to cube")
+                is_poop = turn_and_scan_cube()
+                picked_up = True
+
+        RIGHT_WHEEL.set_dps(0)
+        LEFT_WHEEL.set_dps(0)
+
+
+    except IOError as error:
+        print(error)
 
 #Entry point -- print instructions
 if __name__=="__main__":
@@ -215,7 +258,6 @@ if __name__=="__main__":
                 
                 print(us_distance)
                 if us_distance < DISTTOLOCATE:
-                    get_location()
                     approach_cube()
                     print("ready to turn to cube")
                     turn_and_scan_cube()

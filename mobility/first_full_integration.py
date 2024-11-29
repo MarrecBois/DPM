@@ -34,11 +34,15 @@ STARTDIST = 4
 SIDEDIST = 9
 NUMSPIRALS = 3
 INCREMENT = 15
-DISTTODEG = 180/(3.1416 * 0.028)
+DISTTODEG = -180/(3.1416 * 0.028)
+DISTFROMCUBE = 4
+DISTTOLOCATE = 20
 ORIENTTODEG = 0.053/0.02
 DEADBAND = 0.5
 DELTASPEED = 100
 SLEEP_TIME = 0.5
+CUBE_DETECT_ANGLE = 5
+CUBE_SPEED_LIMIT = 100
 
 # ****** US Sensor Motor ******
 
@@ -57,17 +61,17 @@ def sensor_rotate(direction):
 def isBlock(current_distance, threshold):
     # Rotate the sensor to the top
     sensor_rotate("up")
-    time.sleep(1)
+    time.sleep(0.25)
 
     # Sample from the top position sensor
     top_distance = US_SENSOR_FRONT.get_value()
 
     # Rotate the sensor to the bottom
     sensor_rotate("down")
-    time.sleep(1)
+    time.sleep(0.25)
 
     # Compare the two samples
-    if (abs(current_distance - top_distance)) > threshold:
+    if (top_distance - current_distance) > threshold:
         print("Block detected, current distance is ", current_distance, " and top distance is ", top_distance)
         return True
     else:
@@ -187,7 +191,8 @@ def color_sensor_filter(color_sensor):
         while len(r_sample_array) < 20:
             sample = color_sensor.get_value()
             if color_sensor == CSR:
-                print("*****CSR: sample value,", sample)
+                pass
+                #print("*****CSR: sample value,", sample)
             if sample is not None and all(value != 0 for value in sample):
                 r_sample_array.append(sample[0])
                 g_sample_array.append(sample[1])
@@ -221,7 +226,7 @@ def CSR_sense_water():
     distance_to_center = calculate_euclidean_distance((CSR_normalized_r, CSR_normalized_g, CSR_normalized_b), water_color_center)
     # if the distance is less than a threshold, then it is water
     if distance_to_center < 0.1:
-        print("**** CSR: WATER is detected with distance: ", distance_to_center)
+        #print("**** CSR: WATER is detected with distance: ", distance_to_center)
         return True
     else:
         return False
@@ -238,7 +243,7 @@ def CSL_sense_water():
     distance_to_center = calculate_euclidean_distance((CSL_normalized_r, CSL_normalized_g, CSL_normalized_b), water_color_center)
     # if the distance is less than a threshold, then it is water
     if distance_to_center < 0.1:
-        print("**** CSL: WATER is detected with distance: ", distance_to_center)
+        #print("**** CSL: WATER is detected with distance: ", distance_to_center)
         return True
     else:
         return False
@@ -263,6 +268,7 @@ def drive_forward(sideDist):
     while side_dist == None:
         side_dist = US_SENSOR_RIGHT.get_value()
 
+    print("Current side reading: {}".format(side_dist))
     # If water is detected on the left sensor, then modify the error
     if CSL_water:
         error = MIN_WATER_DIST_TO_WALL - side_dist
@@ -293,18 +299,19 @@ def drive_forward(sideDist):
 
 #Goes forward until it gets within a certain distance from the wall
 def followWallUntilHit(distFromWallStop, sideDist):
+    global SIDEDIST
 
     RIGHT_WHEEL.set_dps(-SPEED_LIMIT)
     LEFT_WHEEL.set_dps(-SPEED_LIMIT)
     current_dist = US_SENSOR_FRONT.get_value()
     
-    while current_dist == None: # What's the point of this??
+    while current_dist == None or current_dist == 0: # What's the point of this??
         current_dist = US_SENSOR_FRONT.get_value() 
 
     sensor_values = [US_SENSOR_FRONT.get_value() for _ in range(3)]
     current_dist = sorted(sensor_values)[1]
 
-    nonStopDriveDistanceLimit = 20
+    nonStopDriveDistanceLimit = 15
     keep_going = True
     need_to_turn = False
     while keep_going:
@@ -316,7 +323,7 @@ def followWallUntilHit(distFromWallStop, sideDist):
             nonStopDriveDistanceLimit = distFromWallStop
             need_to_turn = True
 
-        sensor_values = [US_SENSOR_FRONT.get_value() for _ in range(3)]
+        sensor_values = [US_SENSOR_FRONT.get_value() for _ in range(7)]
         current_dist = sorted(sensor_values)[1]
         print("Current measured distance " + str(current_dist))
         if current_dist < nonStopDriveDistanceLimit:
@@ -328,7 +335,17 @@ def followWallUntilHit(distFromWallStop, sideDist):
             elif (isBlock(current_dist, 7)):
                 #cube function FROM MARREC
                 print("Cube function")
-                keep_going = False
+                RIGHT_WHEEL.set_dps(0)
+                LEFT_WHEEL.set_dps(0)
+                is_poop = cube_check()
+                if is_poop:
+                    pickup_cube()
+                else:
+                    avoid_obstacle()
+                    new_dist = change_direction()
+                    sideDist = new_dist
+                    SIDEDIST = new_dist
+                keep_going = True
             else:
                 #Half the distance we're checking before polling the isBlock function
                 nonStopDriveDistanceLimit = nonStopDriveDistanceLimit/2
@@ -340,8 +357,15 @@ def followWallUntilHit(distFromWallStop, sideDist):
     
 #Goes forward dist amount of cm
 def moveDistForward(dist):
-    LEFT_WHEEL.set_position_relative(int(-dist*DISTTODEG))
-    RIGHT_WHEEL.set_position_relative(int(-dist*DISTTODEG))
+    LEFT_WHEEL.set_position_relative(int(dist*DISTTODEG))
+    RIGHT_WHEEL.set_position_relative(int(dist*DISTTODEG))
+        
+#Call this function to move forward by x cm
+def move_forward(distance):
+    LEFT_WHEEL.set_limits(POWER_LIMIT, CUBE_SPEED_LIMIT)
+    RIGHT_WHEEL.set_limits(POWER_LIMIT, CUBE_SPEED_LIMIT)
+    RIGHT_WHEEL.set_position_relative(int(distance * DISTTODEG))
+    LEFT_WHEEL.set_position_relative(int(distance * DISTTODEG))
 
 #Turns left by the given angle
 def turnLeft(deg):
@@ -360,6 +384,199 @@ def turnRight(deg):
         RIGHT_WHEEL.set_limits(POWER_LIMIT, SPEED_LIMIT)
         RIGHT_WHEEL.set_position_relative(int(deg*ORIENTTODEG))
         LEFT_WHEEL.set_position_relative(int(-deg*ORIENTTODEG))
+    except IOError as error:
+        print(error)
+
+#Turns left by the given angle
+def turnLeftSlow(deg):
+    try:
+        LEFT_WHEEL.set_limits(POWER_LIMIT, CUBE_SPEED_LIMIT)
+        RIGHT_WHEEL.set_limits(POWER_LIMIT, CUBE_SPEED_LIMIT)
+        LEFT_WHEEL.set_position_relative(int(deg*ORIENTTODEG))
+        RIGHT_WHEEL.set_position_relative(int(-deg*ORIENTTODEG))
+    except IOError as error:
+        print(error)
+
+#Turns right by the given angle
+def turnRightSlow(deg):
+    try:
+        LEFT_WHEEL.set_limits(POWER_LIMIT, CUBE_SPEED_LIMIT)
+        RIGHT_WHEEL.set_limits(POWER_LIMIT, CUBE_SPEED_LIMIT)
+        RIGHT_WHEEL.set_position_relative(int(deg*ORIENTTODEG))
+        LEFT_WHEEL.set_position_relative(int(-deg*ORIENTTODEG))
+    except IOError as error:
+        print(error)
+
+#Turns left more on the spot mainly for 180 degree turns
+def turnLeftOnSpot(deg):
+    try:
+        LEFT_WHEEL.set_limits(POWER_LIMIT, SPEED_LIMIT)
+        RIGHT_WHEEL.set_limits(POWER_LIMIT, SPEED_LIMIT - 100)
+        RIGHT_WHEEL.set_position_relative(int(-deg*ORIENTTODEG))
+        LEFT_WHEEL.set_position_relative(int(deg*ORIENTTODEG))
+    except IOError as error:
+        print(error)
+
+#Turns right more on the spot mainly for 180 degree turns
+def turnRightOnSpot(deg):
+    try:
+        LEFT_WHEEL.set_limits(POWER_LIMIT, SPEED_LIMIT - 100)
+        RIGHT_WHEEL.set_limits(POWER_LIMIT, SPEED_LIMIT)
+        RIGHT_WHEEL.set_position_relative(int(deg*ORIENTTODEG))
+        LEFT_WHEEL.set_position_relative(int(-deg*ORIENTTODEG))
+    except IOError as error:
+        print(error)
+
+def set_speed():
+    RIGHT_WHEEL.set_dps(-CUBE_SPEED_LIMIT)
+    LEFT_WHEEL.set_dps(-CUBE_SPEED_LIMIT)
+
+# Call this function to get the bot to approach the cube until it is x cm away
+def approach_cube():
+    turnLeftSlow(5)
+    time.sleep(0.5)
+    #Get the current distance from the cube
+    current_dist = US_SENSOR_FRONT.get_value()
+
+    #print(current_dist)
+    while current_dist == None or current_dist == 0:
+        current_dist = US_SENSOR_FRONT.get_value()
+
+
+    #Repeat until the bot is close to cube
+    print("Going for cube now!")
+    while current_dist > DISTFROMCUBE:
+                    
+
+        current_dist = US_SENSOR_FRONT.get_value()
+        turned = False
+        print(current_dist)
+        while current_dist == None or current_dist == 0:
+            current_dist = US_SENSOR_FRONT.get_value()
+        
+        #If it's not perfectly lined up, it may need to correct to the right a bit as it approaches the cube...
+        if current_dist > DISTTOLOCATE + 3:
+            turnLeftSlow(10)
+            time.sleep(0.5)
+        
+        while current_dist > DISTTOLOCATE + 3:
+            turnRightSlow(2)
+            time.sleep(0.1)
+            turned = True
+            current_dist = US_SENSOR_FRONT.get_value()
+            print("approaching distance: {}".format(current_dist))
+        
+        if turned:
+            print("good")
+
+        set_speed()
+
+
+
+    RIGHT_WHEEL.set_dps(0)
+    LEFT_WHEEL.set_dps(0)
+    print(current_dist)
+    print("I'm here to pick u up u little shit")
+
+
+#Call this function to turn the appropriate amount to get color sensor directly above the cube to sense it
+def turn_and_scan_cube():
+    turnLeftSlow(35)
+    time.sleep(0.47)
+    set_speed()
+
+    # Move forward until you scan a cube
+    color = CSR.get_value()
+    print("color is: ".format(color))
+    while color[0] + color[1] + color[2] < 100:
+        print("color is: {}".format(color))
+        color = CSR.get_value()
+
+
+    r,g,b = color_sensor_filter(CSR)
+    normal_r, normal_g, normal_b = normalize_color_sensor_data(r, g, b)
+    color = CSR_calculate_closest_cube(normal_r, normal_g, normal_b)
+    print(color)
+    if color == "YELLOWPOOP" or color == "ORANGEPOOP":
+        print("WE FOUND POOP LETS PICK IT UP")
+        return True
+    else:
+        print("DONT HIT THE OBSTACLES PLEASE AVOID IT")
+        return False
+
+    
+#Call this function if we determine that the scanned cube is a poop to pick it up
+def pickup_cube():
+    print("Picking up cube")
+    LEFT_WHEEL.set_dps(0)
+    RIGHT_WHEEL.set_dps(0)
+    sensor_rotate("up")
+    turnRightSlow(45)
+    time.sleep(0.7)
+    move_forward(0.5)
+    time.sleep(1.25)
+    LEFT_WHEEL.set_dps(0)
+    RIGHT_WHEEL.set_dps(0)
+    sensor_rotate("down")
+
+#Call this function if we determine that the scanned cube is an obstacle to avoid it
+def avoid_obstacle():
+    print("avoiding obstacle")
+    LEFT_WHEEL.set_dps(0)
+    RIGHT_WHEEL.set_dps(0)
+    move_forward(-1.5)
+    time.sleep(1.5)
+    turnRightSlow(35)
+    time.sleep(0.4)
+
+#Call this function to reverse the direction of the robot and start polling the opposite wall as we travel
+def change_direction():
+    LEFT_WHEEL.set_dps(0)
+    RIGHT_WHEEL.set_dps(0)
+
+    #Determine which wall we should be following
+    if (SIDEDIST == 9):
+        new_side = 103
+        turnLeftOnSpot(285)
+        time.sleep(1.5)
+    else:
+        new_side = 9
+        turnRightOnSpot(285)
+        time.sleep(1.5)
+
+    return new_side
+
+#Call this when you are not sure whether to turn left or right, and must decide based on which direction we're currently spiraling
+def turn(deg):
+    if SIDEDIST == 9:
+        turnLeft(deg)
+    else:
+        turnRight(deg)
+
+#Call this function to complete all of the steps necessary to appraoch, scan, and pickup/avoid a cube
+def cube_check():
+    try:
+        set_speed()
+
+        picked_up = False
+
+        while not picked_up:
+            us_distance = US_SENSOR_FRONT.get_value()
+            while us_distance == None:
+                us_distance = US_SENSOR_FRONT.get_value()
+            
+            print(us_distance)
+            if us_distance < DISTTOLOCATE:
+                approach_cube()
+                print("ready to turn to cube")
+                is_poop = turn_and_scan_cube()
+                picked_up = True
+
+        RIGHT_WHEEL.set_dps(0)
+        LEFT_WHEEL.set_dps(0)
+        return is_poop
+
+
     except IOError as error:
         print(error)
 
@@ -387,33 +604,36 @@ if __name__=="__main__":
                 #ANGLE DEPENDS ON BATTERY
                 followWallUntilHit(dist, side)
                 print("turning left")
-                turnLeft(60)
+                turn(60)
                 time.sleep(SLEEP_TIME)
                 moveDistForward(0.3)
                 time.sleep(SLEEP_TIME)
-                turnLeft(20)
+                turn(20)
                 time.sleep(SLEEP_TIME)
+                side = SIDEDIST
                 followWallUntilHit(dist, side)
-                turnLeft(60)
+                turn(60)
                 time.sleep(SLEEP_TIME)
                 moveDistForward(0.3)
                 time.sleep(SLEEP_TIME)
-                turnLeft(20)
+                turn(20)
                 time.sleep(SLEEP_TIME)
+                side = SIDEDIST
                 followWallUntilHit(dist, side)
-                turnLeft(60)
+                turn(60)
                 time.sleep(SLEEP_TIME)
                 moveDistForward(0.3)
                 time.sleep(SLEEP_TIME)
-                turnLeft(20)
+                turn(20)
                 time.sleep(SLEEP_TIME)
                 dist += INCREMENT
+                side = SIDEDIST
                 followWallUntilHit(dist, side)
-                turnLeft(60)
+                turn(60)
                 time.sleep(SLEEP_TIME)
                 moveDistForward(0.3)
                 time.sleep(SLEEP_TIME)
-                turnLeft(20)
+                turn(20)
                 time.sleep(SLEEP_TIME)
                 side += INCREMENT
                 

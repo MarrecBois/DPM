@@ -9,18 +9,15 @@ from statistics import median
 
 #Allocate resources, initial configuration
 
-# US Sensor Rotation Parameters
-US_MOTOR = Motor("A")
-DPS = 180
-ROTATION_ANGLE = 200
-
 # Navigation parameters
 BP = brickpi3.BrickPi3()
 POWER_LIMIT = 150
 SPEED_LIMIT = 360
+DPS = 180
 DRUM_ANGLE = 20
 RIGHT_WHEEL = Motor("B")
 LEFT_WHEEL = Motor("C")
+US_MOTOR = Motor("A")
 US_SENSOR_FRONT = EV3UltrasonicSensor(4)
 US_SENSOR_RIGHT = EV3UltrasonicSensor(1)
 
@@ -39,43 +36,6 @@ ORIENTTODEG = 0.053/0.02
 DEADBAND = 0.5
 DELTASPEED = 100
 SLEEP_TIME = 0.5
-
-# ****** US Sensor Motor ******
-
-def sensor_rotate(direction):
-    #Calculate the sleep and limits/position of the motor using the global variables
-    time.sleep(ROTATION_ANGLE/DPS)
-    US_MOTOR.set_limits(dps = DPS)
-    if (direction == "up"):
-        US_MOTOR.set_position_relative(ROTATION_ANGLE)
-    else:
-        US_MOTOR.set_position_relative(-ROTATION_ANGLE)
-    time.sleep(ROTATION_ANGLE/DPS)
-
-# Current distance is the sampled when the sensor is at the bottom
-# Threshold is the distance that is considered a block
-def isBlock(current_distance, threshold):
-    # Rotate the sensor to the top
-    sensor_rotate("up")
-    time.sleep(1)
-
-    # Sample from the top position sensor
-    top_distance = US_SENSOR_FRONT.get_value()
-
-    # Rotate the sensor to the bottom
-    sensor_rotate("down")
-    time.sleep(1)
-
-    # Compare the two samples
-    if (abs(current_distance - top_distance)) > threshold:
-        print("Block detected, current distance is ", current_distance, " and top distance is ", top_distance)
-        return True
-    else:
-        print("No block detected current distance is ", current_distance, " and top distance is ", top_distance)
-        return False
-
-
-
 
 # ****** Color Detection ******
 
@@ -134,30 +94,6 @@ def CSR_calculate_closest_color(r,g,b):
     
     return closest_color[1]
 
-# For an input RGB value it will return the closest color in the color sensor data by calculating the euclidean distance
-# Assumes the input value and the center values are NORMALIZED
-# For Color Sensor Right (High)
-def CSR_calculate_closest_cube(r,g,b):
-    sample = r,g,b
-
-    # Block colors
-    orange_waste_color_center = (0.722, 0.173, 0.106, "ORANGEPOOP") # Orange / unormalized (351.87, 84.22, 51.43)
-    yellow_waste_color_center = (0.576, 0.376, 0.048, "YELLOWPOOP") # Yellow / unnormalized (354.92, 231.72, 29.76)
-    people_color_center = (0.384, 0.268, 0.348, "PEOPLE") # Purple / unnormalized (83.82, 58.58, 75.94)
-    chair_color_center = (0.147, 0.642, 0.211, "CHAIR") # Green / unnormalized (38.72, 169.08, 55.68)
-
-    color_center_array = [orange_waste_color_center, yellow_waste_color_center, people_color_center, chair_color_center]
-
-    # distance, color name
-    closest_color = 10000, "NONE"
-
-    for center in color_center_array:
-        distance_to_center = calculate_euclidean_distance(sample, center)
-        if distance_to_center < closest_color[0]:
-            closest_color = distance_to_center, center[3]
-    
-    return closest_color[1]
-
 def calculate_euclidean_distance(sample, reference):
     sample_r = sample[0]
     sample_g = sample[1]
@@ -186,29 +122,20 @@ def color_sensor_filter(color_sensor):
     try:
         while len(r_sample_array) < 20:
             sample = color_sensor.get_value()
-            if color_sensor == CSR:
-                print("*****CSR: sample value,", sample)
-            if sample is not None and all(value != 0 for value in sample):
+            if sample is not None and (sample[0] != 0 and sample[1] != 0 and sample[2] != 0):
                 r_sample_array.append(sample[0])
                 g_sample_array.append(sample[1])
                 b_sample_array.append(sample[2])
-            else:
-                print("Invalid sample detected, retrying...")
-                time.sleep(0.05)  # Small delay before retrying
-
+        
         r_median = median(r_sample_array)
         g_median = median(g_sample_array)
         b_median = median(b_sample_array)
-
+        
         return r_median, g_median, b_median
 
-    except IOError as error:
-        print(f"I/O error during color sensor filtering: {error}")
-        return None, None, None  # Return default values or handle as needed
-    except Exception as e:
-        print(f"Unexpected error during color sensor filtering: {e}")
-        return None, None, None
 
+    except BaseException:  # capture all exceptions including KeyboardInterrupt (Ctrl-C)
+        exit()  
 
 def CSR_sense_water():
     # Based on the sensor, get the median of 20 samples
@@ -243,6 +170,22 @@ def CSL_sense_water():
     else:
         return False
 
+def CSR_sense_trash():
+    # Based on the sensor, get the median of 20 samples
+    CSR_median_r, CSR_median_g, CSR_median_b = color_sensor_filter(CSR)
+    # Normalize the color sensor data
+    CSR_normalized_r, CSR_normalized_g, CSR_normalized_b = normalize_color_sensor_data(CSR_median_r, CSR_median_g, CSR_median_b)
+    # Get the closest color based on which sensor it is
+    trash_color_center = (0.5379, 0.3761, 0.0861, "TRASH") # Yellow / unnormalized (4.48, 6.30, 14.26)
+    # Calculate the distance to the center
+    distance_to_center = calculate_euclidean_distance((CSR_normalized_r, CSR_normalized_g, CSR_normalized_b), trash_color_center)
+    # if the distance is less than a threshold, then it is water
+    print("distance to center: ", distance_to_center)
+    if distance_to_center < 0.05:
+        print("**** CSR: Trash is detected with distance: ", distance_to_center)
+        return True
+    else:
+        return False
 # ****** Robot Navigation ******
 
 #Function to initialize motor
@@ -254,90 +197,177 @@ def init_motor(motor : Motor):
         print(error)
 
 
-def drive_forward(sideDist):
-    CSR_water = CSR_sense_water()
-    CSL_water = CSL_sense_water()
 
-    # Get the distance from the side wall and correct accordingly
-    side_dist = US_SENSOR_RIGHT.get_value()
-    while side_dist == None:
-        side_dist = US_SENSOR_RIGHT.get_value()
-
-    # If water is detected on the left sensor, then modify the error
-    if CSL_water:
-        error = MIN_WATER_DIST_TO_WALL - side_dist
-    elif CSR_water:
-        error = 255 - side_dist
-    else:
-        error = sideDist - side_dist
-    
-    if abs(error) < DEADBAND:
-        print("ALL GOOD")
-        RIGHT_WHEEL.set_dps(-SPEED_LIMIT)
-        LEFT_WHEEL.set_dps(-SPEED_LIMIT)
-
-    elif error < 0:
-        print("TOO FAR SPEED UP LEFT WHEEL")
-        RIGHT_WHEEL.set_dps(-SPEED_LIMIT)
-        LEFT_WHEEL.set_dps(-SPEED_LIMIT - DELTASPEED)
-        if CSL_water:
-            LEFT_WHEEL.set_dps(-SPEED_LIMIT - DELTASPEED*2)
-
-    else:
-        print("TOO CLOSE SPEED UP RIGHT WHEEL")
-        RIGHT_WHEEL.set_dps(-SPEED_LIMIT - DELTASPEED)
-        if CSR_water:
-            RIGHT_WHEEL.set_dps(-SPEED_LIMIT - DELTASPEED*2)
-        LEFT_WHEEL.set_dps(-SPEED_LIMIT)
-
-
-#Goes forward until it gets within a certain distance from the wall
-def followWallUntilHit(distFromWallStop, sideDist):
+#Goes forward until it gets within a certain distance from the wall or (trash is detected if specificied)
+def followWallUntilHit(distFromWall, sideDist, isSensingForTrash=False):
+    print(distFromWall)
+    current_dist = US_SENSOR_FRONT.get_value()
 
     RIGHT_WHEEL.set_dps(-SPEED_LIMIT)
     LEFT_WHEEL.set_dps(-SPEED_LIMIT)
-    current_dist = US_SENSOR_FRONT.get_value()
+    print(current_dist)
+    while current_dist == None:
+        current_dist = US_SENSOR_FRONT.get_value()
     
-    while current_dist == None: # What's the point of this??
-        current_dist = US_SENSOR_FRONT.get_value() 
+    while current_dist > distFromWall:
+        current_dist = US_SENSOR_FRONT.get_value()
+        print(current_dist)
 
-    sensor_values = [US_SENSOR_FRONT.get_value() for _ in range(3)]
-    current_dist = sorted(sensor_values)[1]
+        # See if the robot is sensing water
+        #CSR_water = CSR_sense_water()
+        CSL_water = CSL_sense_water()
 
-    nonStopDriveDistanceLimit = 20
-    keep_going = True
-    need_to_turn = False
-    while keep_going:
+        while current_dist == None:
+            current_dist = US_SENSOR_FRONT.get_value()
+        
+        # Get the distance from the side wall and correct accordingly
+        side_dist = US_SENSOR_RIGHT.get_value()
+        while side_dist == None:
+            side_dist = US_SENSOR_RIGHT.get_value()
 
-        drive_forward(sideDist)
-        #if the distance we're checking is less than the distance we want to stop at, chang it
-        if nonStopDriveDistanceLimit < distFromWallStop:
-            print ("need to turn to True")
-            nonStopDriveDistanceLimit = distFromWallStop
-            need_to_turn = True
+        # If water is detected on the left sensor, then modify the error
+        if CSL_water:
+            error = MIN_WATER_DIST_TO_WALL - side_dist
+       # elif CSR_water:
+         #   error = 255 - side_dist
+        else:
+            error = sideDist - side_dist
 
-        sensor_values = [US_SENSOR_FRONT.get_value() for _ in range(3)]
-        current_dist = sorted(sensor_values)[1]
-        print("Current measured distance " + str(current_dist))
-        if current_dist < nonStopDriveDistanceLimit:
+                        
+        if isSensingForTrash and CSR_sense_trash():
+            print("Trash detected")
             RIGHT_WHEEL.set_dps(0)
             LEFT_WHEEL.set_dps(0)
-            time.sleep(0.1)
-            if (need_to_turn):
-                keep_going = False
-            elif (isBlock(current_dist, 7)):
-                #cube function FROM MARREC
-                print("Cube function")
-                keep_going = False
-            else:
-                #Half the distance we're checking before polling the isBlock function
-                nonStopDriveDistanceLimit = nonStopDriveDistanceLimit/2
+            return True
+        
+        if abs(error) < DEADBAND:
+            print("ALL GOOD")
+            RIGHT_WHEEL.set_dps(-SPEED_LIMIT)
+            LEFT_WHEEL.set_dps(-SPEED_LIMIT)
 
-    #Stop the motors before turn 
+        elif error < 0:
+            print("TOO FAR SPEED UP LEFT WHEEL")
+            RIGHT_WHEEL.set_dps(-SPEED_LIMIT)
+            LEFT_WHEEL.set_dps(-SPEED_LIMIT - DELTASPEED)
+            if CSL_water:
+                LEFT_WHEEL.set_dps(-SPEED_LIMIT - DELTASPEED*2)
+
+        
+        else:
+            print("TOO CLOSE SPEED UP RIGHT WHEEL")
+            RIGHT_WHEEL.set_dps(-SPEED_LIMIT - DELTASPEED)
+           # if CSR_water:
+         #       RIGHT_WHEEL.set_dps(-SPEED_LIMIT - DELTASPEED*2)
+            LEFT_WHEEL.set_dps(-SPEED_LIMIT)
+
+
     RIGHT_WHEEL.set_dps(0)
     LEFT_WHEEL.set_dps(0)
-    print("Exited main drive loop")
+    print("OUTSIDE")
+    return False
+
+def goToTrash():
     
+    # Get Distance To Wall Infront of Robot
+    distanceToForwardWall = US_SENSOR_FRONT.get_value()
+    while distanceToForwardWall == None:
+        distanceToForwardWall = US_SENSOR_FRONT.get_value()
+
+    # Get Distance To Wall to the side of Robot
+    distanceToRightWall = US_SENSOR_RIGHT.get_value()
+    while distanceToRightWall == None:
+        distanceToRightWall = US_SENSOR_RIGHT.get_value()
+
+    distanceToBackWall = 122 - distanceToForwardWall
+    distanceToLeftWall = 122 - distanceToRightWall
+
+    # If the right wall is the closest wall, turn right
+    if distanceToRightWall < distanceToForwardWall and distanceToRightWall < distanceToLeftWall and distanceToRightWall < distanceToBackWall:
+        turnRight(90)
+
+    # If the left wall is the closest wall, turn left
+    elif distanceToLeftWall < distanceToForwardWall and distanceToLeftWall < distanceToRightWall and distanceToLeftWall < distanceToBackWall:
+        turnLeft(90)
+
+     # If the back wall is the closest wall, turn around
+    elif distanceToBackWall < distanceToForwardWall and distanceToBackWall < distanceToRightWall and distanceToBackWall < distanceToLeftWall:
+        turnLeft(180)
+        
+    # If the forward wall is the closest wall, do nothing
+
+    # Move forward until the trash is detected or wall is hit
+    dist = STARTDIST
+    distanceToRightWall = US_SENSOR_RIGHT.get_value()
+    while distanceToRightWall == None:
+        distanceToRightWall = US_SENSOR_RIGHT.get_value()
+    
+    try:
+        #ANGLE DEPENDS ON BATTERY
+        # Travel to closest wall
+        if (followWallUntilHit(dist, distanceToRightWall)):
+            return
+        print("turning left")
+        turnLeft(60)
+        time.sleep(1)
+        moveDistForward(0.3)
+        time.sleep(0.5)
+        turnLeft(20)
+        time.sleep(1)
+
+        # Follow wall until trash is detected
+        side = SIDEDIST
+        if (followWallUntilHit(dist, side, True)):
+            followWallUntilHit(dist, side-4)
+            return
+        print("turning left 11")
+        turnLeft(60)
+        time.sleep(1)
+        moveDistForward(0.3)
+        time.sleep(0.5)
+        turnLeft(20)
+        time.sleep(1)
+        if (followWallUntilHit(dist, side, True)):
+            followWallUntilHit(dist, side-4)
+            return
+        print("turning left 22")
+        turnLeft(60)
+        time.sleep(1)
+        moveDistForward(0.3)
+        time.sleep(0.5)
+        turnLeft(20)
+        time.sleep(1)
+        if (followWallUntilHit(dist, side, True)):
+            followWallUntilHit(dist, side-4)
+            return
+        turnLeft(60)
+        time.sleep(1)
+        moveDistForward(0.3)
+        time.sleep(0.5)
+        turnLeft(20)
+        time.sleep(1)
+        if (followWallUntilHit(dist, side, True)):
+            followWallUntilHit(dist, side-4)
+            return
+        turnLeft(60)
+        time.sleep(1)
+        moveDistForward(0.3)
+        time.sleep(0.5)
+        turnLeft(20)
+        time.sleep(1)
+        if (followWallUntilHit(dist, side, True)):
+            followWallUntilHit(dist, side-4)
+            return
+        print("turning left")
+        turnLeft(60)
+        time.sleep(1)
+        moveDistForward(0.3)
+        time.sleep(0.5)
+        turnLeft(20)
+        time.sleep(1)
+
+    except IOError as error:
+        print(error)
+  
 #Goes forward dist amount of cm
 def moveDistForward(dist):
     LEFT_WHEEL.set_position_relative(int(-dist*DISTTODEG))
@@ -364,64 +394,23 @@ def turnRight(deg):
         print(error)
 
 # ***** Main *****
+#Entry point -- print instructions
 if __name__=="__main__":
     try:
         wait_ready_sensors(True)
         print('Basic Traversal Test')
 
-        
         try:
             #Initialize the motor and set desired limits
             init_motor(RIGHT_WHEEL)
             init_motor(LEFT_WHEEL)
             init_motor(US_MOTOR)
+     
+            goToTrash()
 
         except IOError as error:
-            print("IOERROR" + error)
+            print(error)      
             
-        #Main loop
-        dist = STARTDIST
-        side = SIDEDIST
-        for i in range(NUMSPIRALS):
-            try:
-                #ANGLE DEPENDS ON BATTERY
-                followWallUntilHit(dist, side)
-                print("turning left")
-                turnLeft(60)
-                time.sleep(SLEEP_TIME)
-                moveDistForward(0.3)
-                time.sleep(SLEEP_TIME)
-                turnLeft(20)
-                time.sleep(SLEEP_TIME)
-                followWallUntilHit(dist, side)
-                turnLeft(60)
-                time.sleep(SLEEP_TIME)
-                moveDistForward(0.3)
-                time.sleep(SLEEP_TIME)
-                turnLeft(20)
-                time.sleep(SLEEP_TIME)
-                followWallUntilHit(dist, side)
-                turnLeft(60)
-                time.sleep(SLEEP_TIME)
-                moveDistForward(0.3)
-                time.sleep(SLEEP_TIME)
-                turnLeft(20)
-                time.sleep(SLEEP_TIME)
-                dist += INCREMENT
-                followWallUntilHit(dist, side)
-                turnLeft(60)
-                time.sleep(SLEEP_TIME)
-                moveDistForward(0.3)
-                time.sleep(SLEEP_TIME)
-                turnLeft(20)
-                time.sleep(SLEEP_TIME)
-                side += INCREMENT
-                
-
-        
-            except IOError as error:
-                print(error)
-
     #Trigger program exit with ^C
     except KeyboardInterrupt:
         BP.reset_all()

@@ -4,6 +4,7 @@ import brickpi3
 import time
 from utils import brick
 from utils.brick import BP, Motor, EV3UltrasonicSensor, wait_ready_sensors
+from water_avoidance_traversal import *
 
 #Allocate resources, initial configuration
 
@@ -36,8 +37,9 @@ def init_motor(motor : Motor):
     except IOError as error:
         print(error)
 
-#Goes forward until it gets within a certain distance from the wall
+#Goes forward until it gets within a certain distance from the wall or trash is detected
 def followWallUntilHit(distFromWall, sideDist):
+    
     print(distFromWall)
     current_dist = US_SENSOR_FRONT.get_value()
 
