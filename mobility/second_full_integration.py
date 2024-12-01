@@ -191,7 +191,8 @@ def color_sensor_filter(color_sensor):
     g_sample_array = []
     b_sample_array = []
     try:
-        while len(r_sample_array) < 20:
+        count = 0
+        while len(r_sample_array) < 20 and count < 10:
             sample = color_sensor.get_value()
             if color_sensor == CSR:
                 pass
@@ -201,13 +202,15 @@ def color_sensor_filter(color_sensor):
                 g_sample_array.append(sample[1])
                 b_sample_array.append(sample[2])
             else:
+                count += 1
                 print("Invalid sample detected, retrying...")
                 time.sleep(0.05)  # Small delay before retrying
 
         r_median = median(r_sample_array)
         g_median = median(g_sample_array)
         b_median = median(b_sample_array)
-
+        if count == 20:
+            return (1, 1, 1)
         return r_median, g_median, b_median
 
     except IOError as error:
@@ -267,12 +270,12 @@ def span_decision():
     print("SPANNNNNN = ")
     print(span_count)
     if SIDEDIST == 9:
-        if span_count > 325:
+        if span_count > 250:
             span_count = 0
-        if span_count > 225:
+        if span_count > 175:
             span_count += 1
             return "back"
-        elif span_count > 125:
+        elif span_count > 100:
             span_count += 1
             return "span"
         else:
@@ -310,12 +313,12 @@ def drive_forward(sideDist):
     # If water is detected on the left sensor, then modify the error
     if CSL_water: 
         water_avoidance_delay = True
-        span_count = 0
+        span_count = -50
         print("WAAAAAAAAAAAAAAAAAAAAAAAAAATTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTAAAAAAAAAAAAAAAAA")
         SPEED_LIMIT = 100
         error = MIN_WATER_DIST_TO_WALL - side_dist
     elif CSR_water:
-        span_count = 0
+        span_count = -50
         water_avoidance_delay = True
         SPEED_LIMIT = 100
         error = 255 - side_dist
@@ -326,12 +329,12 @@ def drive_forward(sideDist):
     
     if span_dec == "span":
         RIGHT_WHEEL.set_dps(0)
-        LEFT_WHEEL.set_dps(100)
+        LEFT_WHEEL.set_dps(150)
     
     
     elif span_dec == "back":
         RIGHT_WHEEL.set_dps(0)
-        LEFT_WHEEL.set_dps(-100)
+        LEFT_WHEEL.set_dps(-150)
 
     elif abs(error) < DEADBAND:
         print("ALL GOOD")
@@ -524,9 +527,8 @@ def approach_cube():
             current_dist = US_SENSOR_FRONT.get_value()
 
         #Check for water
-        CSR_water = CSR_sense_water()
         CSL_water = CSL_sense_water()
-        if CSR_water or CSL_water:
+        if CSL_water:
             print("OMG ALMOST HIT WATER THAT WAS CLOSE")
             move_forward(-1)
             time.sleep(1.5)
@@ -571,7 +573,7 @@ def approach_cube():
 #Call this function to turn the appropriate amount to get color sensor directly above the cube to sense it
 def turn_and_scan_cube():
     turnLeftSlow(35)
-    time.sleep(0.47)
+    time.sleep(0.43)
     set_speed()
 
     # Move forward until you scan a cube
