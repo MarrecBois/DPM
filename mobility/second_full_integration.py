@@ -17,7 +17,7 @@ ROTATION_ANGLE = 200
 # Navigation parameters
 BP = brickpi3.BrickPi3()
 POWER_LIMIT = 100
-SPEED_LIMIT = 200
+SPEED_LIMIT = 250
 DRUM_ANGLE = 20
 RIGHT_WHEEL = Motor("B")
 LEFT_WHEEL = Motor("C")
@@ -40,9 +40,10 @@ DISTTOLOCATE = 20
 ORIENTTODEG = 0.053/0.02
 DEADBAND = 0.5
 DELTASPEED = 100
-SLEEP_TIME = 0.5
+SLEEP_TIME = 0.4
 CUBE_DETECT_ANGLE = 5
 CUBE_SPEED_LIMIT = 100
+TURN_SPEED = 320
 water_avoidance_delay = False
 span_count = 0
 
@@ -265,16 +266,31 @@ def span_decision():
     global span_count
     print("SPANNNNNN = ")
     print(span_count)
-    if span_count > 325:
-        span_count = 0
-    if span_count > 225:
-        span_count += 1
-        return "back"
-    elif span_count > 125:
-        span_count += 1
-        return "span"
+    if SIDEDIST == 9:
+        if span_count > 325:
+            span_count = 0
+        if span_count > 225:
+            span_count += 1
+            return "back"
+        elif span_count > 125:
+            span_count += 1
+            return "span"
+        else:
+            span_count += 1
+            return "Do nothing"
     else:
-        span_count += 1
+        # if span_count > 325:
+        #     span_count = 0
+        # if span_count > 225:
+        #     span_count += 1
+        #     return "span"
+        # elif span_count > 125:
+        #     span_count += 1
+        #     return "back"
+        # else:
+        #     span_count += 1
+        #     return "Do nothing"
+        span_count = 0
         return "Do nothing"
 
 
@@ -339,11 +355,11 @@ def drive_forward(sideDist):
             LEFT_WHEEL.set_dps(-SPEED_LIMIT)
         else:
             print("BOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOM")
-            RIGHT_WHEEL.set_dps(-SPEED_LIMIT - DELTASPEED/1.7)
+            RIGHT_WHEEL.set_dps(-SPEED_LIMIT - DELTASPEED/1.9)
             LEFT_WHEEL.set_dps(-SPEED_LIMIT)
 
 
-    SPEED_LIMIT = 200
+    SPEED_LIMIT = 250
 
 #Goes forward until it gets within a certain distance from the wall
 def followWallUntilHit(distFromWallStop, sideDist):
@@ -359,7 +375,7 @@ def followWallUntilHit(distFromWallStop, sideDist):
     sensor_values = [US_SENSOR_FRONT.get_value() for _ in range(3)]
     current_dist = sorted(sensor_values)[1]
 
-    nonStopDriveDistanceLimit = 15
+    nonStopDriveDistanceLimit = 10
     keep_going = True
     need_to_turn = False
     while keep_going:
@@ -380,19 +396,25 @@ def followWallUntilHit(distFromWallStop, sideDist):
             time.sleep(0.1)
             if (need_to_turn):
                 keep_going = False
-            elif (isBlock(current_dist, 7)):
-                #cube function FROM MARREC
+            elif (isBlock(current_dist, 3)):
                 print("Cube function")
                 RIGHT_WHEEL.set_dps(0)
                 LEFT_WHEEL.set_dps(0)
                 is_poop = cube_check()
-                if is_poop:
+                if is_poop == 2:
                     pickup_cube()
-                else:
+                elif is_poop == 1:
                     avoid_obstacle()
                     new_dist = change_direction()
                     sideDist = new_dist
                     SIDEDIST = new_dist
+                else:
+                    print("DIDNT FIND CUBE OH NO!")
+                    move_forward(-1)
+                    time.sleep(1.5)
+                    turnRight(10)
+                    time.sleep(0.5)
+
                 keep_going = True
             else:
                 #Half the distance we're checking before polling the isBlock function
@@ -418,8 +440,8 @@ def move_forward(distance):
 #Turns left by the given angle
 def turnLeft(deg):
     try:
-        LEFT_WHEEL.set_limits(POWER_LIMIT, SPEED_LIMIT)
-        RIGHT_WHEEL.set_limits(POWER_LIMIT, SPEED_LIMIT)
+        LEFT_WHEEL.set_limits(POWER_LIMIT, TURN_SPEED)
+        RIGHT_WHEEL.set_limits(POWER_LIMIT, TURN_SPEED)
         LEFT_WHEEL.set_position_relative(int(deg*ORIENTTODEG))
         RIGHT_WHEEL.set_position_relative(int(-deg*ORIENTTODEG))
     except IOError as error:
@@ -428,8 +450,8 @@ def turnLeft(deg):
 #Turns right by the given angle
 def turnRight(deg):
     try:
-        LEFT_WHEEL.set_limits(POWER_LIMIT, SPEED_LIMIT)
-        RIGHT_WHEEL.set_limits(POWER_LIMIT, SPEED_LIMIT)
+        LEFT_WHEEL.set_limits(POWER_LIMIT, TURN_SPEED)
+        RIGHT_WHEEL.set_limits(POWER_LIMIT, TURN_SPEED)
         RIGHT_WHEEL.set_position_relative(int(deg*ORIENTTODEG))
         LEFT_WHEEL.set_position_relative(int(-deg*ORIENTTODEG))
     except IOError as error:
@@ -458,8 +480,8 @@ def turnRightSlow(deg):
 #Turns left more on the spot mainly for 180 degree turns
 def turnLeftOnSpot(deg):
     try:
-        LEFT_WHEEL.set_limits(POWER_LIMIT, SPEED_LIMIT)
-        RIGHT_WHEEL.set_limits(POWER_LIMIT, SPEED_LIMIT - 100)
+        LEFT_WHEEL.set_limits(POWER_LIMIT, TURN_SPEED)
+        RIGHT_WHEEL.set_limits(POWER_LIMIT, TURN_SPEED - 100)
         RIGHT_WHEEL.set_position_relative(int(-deg*ORIENTTODEG))
         LEFT_WHEEL.set_position_relative(int(deg*ORIENTTODEG))
     except IOError as error:
@@ -468,8 +490,8 @@ def turnLeftOnSpot(deg):
 #Turns right more on the spot mainly for 180 degree turns
 def turnRightOnSpot(deg):
     try:
-        LEFT_WHEEL.set_limits(POWER_LIMIT, SPEED_LIMIT - 100)
-        RIGHT_WHEEL.set_limits(POWER_LIMIT, SPEED_LIMIT)
+        LEFT_WHEEL.set_limits(POWER_LIMIT, TURN_SPEED - 100)
+        RIGHT_WHEEL.set_limits(POWER_LIMIT, TURN_SPEED)
         RIGHT_WHEEL.set_position_relative(int(deg*ORIENTTODEG))
         LEFT_WHEEL.set_position_relative(int(-deg*ORIENTTODEG))
     except IOError as error:
@@ -495,28 +517,46 @@ def approach_cube():
     print("Going for cube now!")
     while current_dist > DISTFROMCUBE:
                     
-
         current_dist = US_SENSOR_FRONT.get_value()
         turned = False
         print(current_dist)
         while current_dist == None or current_dist == 0:
             current_dist = US_SENSOR_FRONT.get_value()
+
+        #Check for water
+        CSR_water = CSR_sense_water()
+        CSL_water = CSL_sense_water()
+        if CSR_water or CSL_water:
+            print("OMG ALMOST HIT WATER THAT WAS CLOSE")
+            move_forward(-1)
+            time.sleep(1.5)
+            return True
         
         #If it's not perfectly lined up, it may need to correct to the right a bit as it approaches the cube...
         if current_dist > DISTTOLOCATE + 3:
             turnLeftSlow(10)
             time.sleep(0.5)
-        
-        while current_dist > DISTTOLOCATE + 3:
+
+        count = 0
+        #If it loses cube, find it again...
+        while current_dist > DISTTOLOCATE + 3 and count < 40:
             turnRightSlow(2)
             time.sleep(0.1)
             turned = True
             current_dist = US_SENSOR_FRONT.get_value()
             print("approaching distance: {}".format(current_dist))
+            count += 1
         
         if turned:
             print("good")
 
+        if count == 40:
+            print("LOST CUBE WHILE TURNING NOOOOO")
+            move_forward(-1)
+            time.sleep(1.5)
+            return True
+
+        
         set_speed()
 
 
@@ -525,6 +565,7 @@ def approach_cube():
     LEFT_WHEEL.set_dps(0)
     print(current_dist)
     print("I'm here to pick u up u little shit")
+    return False
 
 
 #Call this function to turn the appropriate amount to get color sensor directly above the cube to sense it
@@ -536,10 +577,16 @@ def turn_and_scan_cube():
     # Move forward until you scan a cube
     color = CSR.get_value()
     print("color is: ".format(color))
-    while color[0] + color[1] + color[2] < 100:
+    count = 0
+    while color[0] + color[1] + color[2] < 100 and count < 2000:
         print("color is: {}".format(color))
         color = CSR.get_value()
+        count += 1
+        if count % 10 == 0:
+            print("Count: {}".format(count))
 
+    if count == 2000:
+        return 3 # if accidental miss
 
     r,g,b = color_sensor_filter(CSR)
     normal_r, normal_g, normal_b = normalize_color_sensor_data(r, g, b)
@@ -547,10 +594,10 @@ def turn_and_scan_cube():
     print(color)
     if color == "YELLOWPOOP" or color == "ORANGEPOOP":
         print("WE FOUND POOP LETS PICK IT UP")
-        return True
+        return 2 # if poop
     else:
         print("DONT HIT THE OBSTACLES PLEASE AVOID IT")
-        return False
+        return 1 # if obstacle
 
     
 #Call this function if we determine that the scanned cube is a poop to pick it up
@@ -566,6 +613,12 @@ def pickup_cube():
     LEFT_WHEEL.set_dps(0)
     RIGHT_WHEEL.set_dps(0)
     sensor_rotate("down")
+
+    if (span_count > 125):
+        move_forward(-1)
+        time.sleep(1.5)
+        turnRight(10)
+        time.sleep(0.5)
 
 #Call this function if we determine that the scanned cube is an obstacle to avoid it
 def avoid_obstacle():
@@ -607,18 +660,28 @@ def cube_check():
         set_speed()
 
         picked_up = False
-
-        while not picked_up:
+        count = 0
+        while not picked_up and count < 2000:
             us_distance = US_SENSOR_FRONT.get_value()
             while us_distance == None:
                 us_distance = US_SENSOR_FRONT.get_value()
             
+            count += 1
             print(us_distance)
             if us_distance < DISTTOLOCATE:
-                approach_cube()
+                lost = approach_cube()
                 print("ready to turn to cube")
-                is_poop = turn_and_scan_cube()
+                if not lost:
+                    is_poop = turn_and_scan_cube()
+                else:
+                    is_poop = 3
                 picked_up = True
+
+        if count == 2000:
+            print("UR SAFE NOW FIND URSELF AGAIN BITCH")
+            move_forward(-1)
+            time.sleep(1.5)
+            return 3
 
         RIGHT_WHEEL.set_dps(0)
         LEFT_WHEEL.set_dps(0)
