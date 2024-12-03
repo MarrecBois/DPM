@@ -353,7 +353,7 @@ def drive_forward(sideDist):
     else:
         if water_avoidance_delay == False:
             print("TOO CLOSE SPEED UP RIGHT WHEEL")
-            RIGHT_WHEEL.set_dps(-SPEED_LIMIT - DELTASPEED)
+            RIGHT_WHEEL.set_dps(-SPEED_LIMIT - DELTASPEED * 1.5) #Sped this up so that it gets back to spot faster and hopefully gets lost less
             if CSR_water:
                 RIGHT_WHEEL.set_dps(-SPEED_LIMIT - DELTASPEED*2)
             LEFT_WHEEL.set_dps(-SPEED_LIMIT)
@@ -398,7 +398,18 @@ def followWallUntilHit(distFromWallStop, sideDist):
         drive_forward(sideDist)
 
         if turning and current_dist < distFromWallStop:
-            break
+
+            # Ensures that the robot didn't run into a wall while navigating
+            side_distance = US_SENSOR_RIGHT.get_value()
+            while side_distance == None or side_distance == 0:
+                side_distance = US_SENSOR_RIGHT.get_value()
+            
+            if side_distance > 18:
+                turnLeft(80)
+                time.sleep(0.5)
+                turning = False
+            else:   
+                break
 
         sensor_values = [US_SENSOR_FRONT.get_value() for _ in range(7)]
         current_dist = sorted(sensor_values)[1]
@@ -436,9 +447,9 @@ def followWallUntilHit(distFromWallStop, sideDist):
 
                 else:
                     print("DIDNT FIND CUBE OH NO!")
-                    move_forward(-1.5)
-                    time.sleep(2.5)
-                    turnRight(10)
+                    move_forward(-2)
+                    time.sleep(3)
+                    turnRight(20)
                     time.sleep(0.5)
 
                 keep_going = True
@@ -455,7 +466,7 @@ def followWallUntilHit(distFromWallStop, sideDist):
 def speedWallUntilHit(dist):
     print("going home")
     LEFT_WHEEL.set_dps(GOHOMESPEED)
-    RIGHT_WHEEL.set_dps(GOHOMESPEED - 8)
+    RIGHT_WHEEL.set_dps(GOHOMESPEED - 12)
     
     #Approach until close to wall
     current_dist = US_SENSOR_FRONT.get_value()
@@ -821,6 +832,7 @@ if __name__=="__main__":
                 exit()
         
         side = SIDEDIST
+        sensor_rotate("up") # rotate up to pick up a cube it may have accidentally pushed to the edge
         for returnTurns in range(rightTurnCount):
             #ANGLE DEPENDS ON BATTERY
             print("entering the return home main loop")
@@ -838,9 +850,6 @@ if __name__=="__main__":
         time.sleep(0.5)
         BP.reset_all()
         exit()
-
-
-
 
     #Trigger program exit with ^C
     except KeyboardInterrupt:
