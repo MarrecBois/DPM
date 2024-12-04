@@ -45,6 +45,7 @@ CUBE_DETECT_ANGLE = 5
 CUBE_SPEED_LIMIT = 100
 TURN_SPEED = 320
 GOHOMESPEED = -600
+STARTSPEED = -400
 water_avoidance_delay = False
 span_count = 0
 
@@ -57,7 +58,7 @@ def sensor_rotate(direction):
     if (direction == "up"):
         US_MOTOR.set_position_relative(ROTATION_ANGLE)
     else:
-        US_MOTOR.set_position_relative(-ROTATION_ANGLE)
+        US_MOTOR.set_position_relative(-ROTATION_ANGLE + 1)
     time.sleep(ROTATION_ANGLE/DPS)
 
 # Current distance is the sampled when the sensor is at the bottom
@@ -268,12 +269,12 @@ def span_decision():
     print("SPANNNNNN = ")
     print(span_count)
     if SIDEDIST == 9:
-        if span_count > 200:
+        if span_count > 230:
             span_count = 0
-        elif span_count > 175:
+        elif span_count > 205:
             span_count += 1
             return "span"
-        if span_count > 100:
+        if span_count > 115:
             span_count += 1
             return "back"
         elif span_count > 50:
@@ -404,7 +405,7 @@ def followWallUntilHit(distFromWallStop, sideDist):
             while side_distance == None or side_distance == 0:
                 side_distance = US_SENSOR_RIGHT.get_value()
             
-            if side_distance > 18:
+            if side_distance > 30:
                 turnLeft(80)
                 time.sleep(0.5)
                 turning = False
@@ -449,8 +450,8 @@ def followWallUntilHit(distFromWallStop, sideDist):
                     print("DIDNT FIND CUBE OH NO!")
                     move_forward(-2)
                     time.sleep(3)
-                    turnRight(20)
-                    time.sleep(0.5)
+                    turnRight(15)
+                    time.sleep(0.4)
 
                 keep_going = True
             else:
@@ -490,6 +491,15 @@ def move_forward(distance):
     RIGHT_WHEEL.set_limits(POWER_LIMIT, CUBE_SPEED_LIMIT)
     RIGHT_WHEEL.set_position_relative(int(distance * DISTTODEG))
     LEFT_WHEEL.set_position_relative(int(distance * DISTTODEG))
+
+#Call this function to quickly move forward when not scanning for anything
+def move_forward_quick(dist):
+    LEFT_WHEEL.set_dps(STARTSPEED)
+    RIGHT_WHEEL.set_dps(STARTSPEED)
+
+def move_backward(dist):
+    LEFT_WHEEL.set_dps(-STARTSPEED)
+    RIGHT_WHEEL.set_dps(-STARTSPEED)
 
 #Turns left by the given angle
 def turnLeft(deg):
@@ -626,7 +636,8 @@ def approach_cube():
             time.sleep(0.5)
             return True
 
-        if approach_count == 1500:
+        if approach_count == 2000:
+            print("Approach failed")
             #Took too long to find anything
             return True
         
@@ -637,7 +648,7 @@ def approach_cube():
     RIGHT_WHEEL.set_dps(0)
     LEFT_WHEEL.set_dps(0)
     #print(current_dist)
-    print("I'm here to pick u up u little shit")
+    print("I'm here to pick u up u little poop")
     return False
 
 
@@ -661,6 +672,7 @@ def turn_and_scan_cube():
             print("Count: {}".format(count))
 
     if count == 1500:
+        print("SENSED TOO MANY COLORS")
         return 3 # if accidental miss
 
     r,g,b = color_sensor_filter(CSR)
@@ -683,8 +695,8 @@ def pickup_cube():
     sensor_rotate("up")
     turnRightSlow(45)
     time.sleep(0.7)
-    move_forward(0.5)
-    time.sleep(1.25)
+    move_forward(0.7)
+    time.sleep(1.33)
     LEFT_WHEEL.set_dps(0)
     RIGHT_WHEEL.set_dps(0)
     sensor_rotate("down")
@@ -761,11 +773,12 @@ def cube_check():
                 if not lost:
                     is_poop = turn_and_scan_cube()
                 else:
+                    print("ur lost noob")
                     is_poop = 3
                 picked_up = True
 
         if count == 2000:
-            print("UR SAFE NOW FIND URSELF AGAIN BITCH")
+            print("UR SAFE NOW FIND URSELF AGAIN")
             move_forward(-1)
             time.sleep(1.5)
             return 3
@@ -798,6 +811,15 @@ if __name__=="__main__":
         dist = STARTDIST
         side = SIDEDIST
         rightTurnCount = 0
+
+        #Go forwards and backwards for the free 3 points
+        time.sleep(1)
+        move_forward_quick(15)
+        print("went forward")
+        time.sleep(1.33)
+        print("went backward")
+        move_backward(15)
+        time.sleep(1.33)
         for leftTurnCount in range(3):
             #ANGLE DEPENDS ON BATTERY
             followWallUntilHit(dist, side)
