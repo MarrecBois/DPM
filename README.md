@@ -5,6 +5,6 @@ Our robot's mission is to traverse a makeshift 'dog park' using various sensors 
 It must sense and avoid water (blue ground) while searching for small foam cubes, which represent either people/benches (purple or green cubes), or dog poop (yellow/orange) cubes.
 The final implementation of our robot's code can be found in mobility/final_integration.py.
 
-Please see the video below to see our robot's final run on demo day:
+
 
 
